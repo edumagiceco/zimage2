@@ -37,7 +37,7 @@ export function ReplayDialog({
   // Fetch gallery images
   const { data: galleryData, isLoading } = useQuery({
     queryKey: ['gallery-for-replay'],
-    queryFn: () => getGalleryImages(1, 50), // Get first 50 images
+    queryFn: () => getGalleryImages({ page: 1, limit: 50 }), // Get first 50 images
     enabled: open,
   });
 
