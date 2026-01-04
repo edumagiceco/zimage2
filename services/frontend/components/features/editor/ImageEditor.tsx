@@ -22,6 +22,7 @@ import { MaskCanvas, type ToolMode } from './MaskCanvas';
 import { BrushToolbar } from './BrushToolbar';
 import { ResultComparison } from './ResultComparison';
 import { EditHistoryPanel } from './EditHistoryPanel';
+import { AdvancedToolsPanel } from './AdvancedToolsPanel';
 import {
   inpaintImage,
   getInpaintTaskStatus,
@@ -419,6 +420,22 @@ export function ImageEditor({ image }: ImageEditorProps) {
               onGrow={handleGrow}
               onShrink={handleShrink}
               onFeather={handleFeather}
+            />
+
+            {/* Advanced Tools (Phase 5) */}
+            <AdvancedToolsPanel
+              imageId={image.id}
+              onMaskGenerated={(maskBase64) => {
+                // Load mask into the canvas
+                if ((window as any).__maskCanvas?.loadMask) {
+                  (window as any).__maskCanvas.loadMask(maskBase64);
+                }
+                toast.success('마스크가 캔버스에 적용되었습니다.');
+              }}
+              onImageGenerated={(imageUrl) => {
+                setResultImages([{ id: '', url: imageUrl, width: image.width, height: image.height }]);
+                setShowComparison(true);
+              }}
             />
 
             {/* Original Image Info */}

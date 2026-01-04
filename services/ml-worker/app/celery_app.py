@@ -8,7 +8,13 @@ celery_app = Celery(
     "ml_worker",
     broker=settings.CELERY_BROKER_URL,
     backend=settings.CELERY_RESULT_BACKEND,
-    include=["app.tasks.image_generation"],
+    include=[
+        "app.tasks.image_generation",
+        "app.tasks.inpainting",
+        "app.tasks.sam_segmentation",
+        "app.tasks.background_removal",
+        "app.tasks.style_transfer",
+    ],
 )
 
 
@@ -40,4 +46,14 @@ celery_app.conf.update(
 # Task routes
 celery_app.conf.task_routes = {
     "generate_image": {"queue": "image_generation"},
+    "inpaint_image": {"queue": "image_generation"},
+    "segment_point": {"queue": "image_generation"},
+    "segment_box": {"queue": "image_generation"},
+    "segment_auto": {"queue": "image_generation"},
+    "remove_background": {"queue": "image_generation"},
+    "replace_background": {"queue": "image_generation"},
+    "replace_background_color": {"queue": "image_generation"},
+    "get_background_mask": {"queue": "image_generation"},
+    "apply_style": {"queue": "image_generation"},
+    "list_styles": {"queue": "image_generation"},
 }

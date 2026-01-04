@@ -333,4 +333,194 @@ export async function replayEdit(
   return response.data;
 }
 
+// ============================================
+// Phase 5: Advanced Image Editing Features
+// ============================================
+
+// SAM Segmentation Types
+export interface SAMResponse {
+  task_id: string;
+  status: string;
+  estimated_time: number;
+}
+
+export interface SAMTaskStatusResponse {
+  task_id: string;
+  status: string;
+  mask_url?: string;
+  mask_base64?: string;
+  masks?: Array<{
+    id: string;
+    url: string;
+    base64: string;
+  }>;
+  error?: string;
+}
+
+// SAM API Functions
+export async function segmentByPoint(
+  imageId: string,
+  pointCoords: number[][],
+  pointLabels: number[]
+): Promise<SAMResponse> {
+  const response = await api.post<SAMResponse>('/api/images/sam/segment-point', {
+    image_id: imageId,
+    point_coords: pointCoords,
+    point_labels: pointLabels,
+  });
+  return response.data;
+}
+
+export async function segmentByBox(
+  imageId: string,
+  box: number[]
+): Promise<SAMResponse> {
+  const response = await api.post<SAMResponse>('/api/images/sam/segment-box', {
+    image_id: imageId,
+    box: box,
+  });
+  return response.data;
+}
+
+export async function segmentAuto(imageId: string): Promise<SAMResponse> {
+  const response = await api.post<SAMResponse>('/api/images/sam/segment-auto', {
+    image_id: imageId,
+  });
+  return response.data;
+}
+
+export async function getSAMTaskStatus(taskId: string): Promise<SAMTaskStatusResponse> {
+  const response = await api.get<SAMTaskStatusResponse>(`/api/images/sam/tasks/${taskId}`);
+  return response.data;
+}
+
+// Background Removal Types
+export interface BackgroundResponse {
+  task_id: string;
+  status: string;
+  estimated_time: number;
+}
+
+export interface BackgroundTaskStatusResponse {
+  task_id: string;
+  status: string;
+  image?: {
+    id: string;
+    url: string;
+    width: number;
+    height: number;
+  };
+  mask_url?: string;
+  mask_base64?: string;
+  error?: string;
+}
+
+// Background API Functions
+export async function removeBackground(
+  imageId: string,
+  alphaMatting: boolean = true
+): Promise<BackgroundResponse> {
+  const response = await api.post<BackgroundResponse>('/api/images/background/remove', {
+    image_id: imageId,
+    alpha_matting: alphaMatting,
+  });
+  return response.data;
+}
+
+export async function replaceBackgroundImage(
+  imageId: string,
+  backgroundImageId: string,
+  alphaMatting: boolean = true
+): Promise<BackgroundResponse> {
+  const response = await api.post<BackgroundResponse>('/api/images/background/replace-image', {
+    image_id: imageId,
+    background_image_id: backgroundImageId,
+    alpha_matting: alphaMatting,
+  });
+  return response.data;
+}
+
+export async function replaceBackgroundColor(
+  imageId: string,
+  color: number[],
+  alphaMatting: boolean = true
+): Promise<BackgroundResponse> {
+  const response = await api.post<BackgroundResponse>('/api/images/background/replace-color', {
+    image_id: imageId,
+    color: color,
+    alpha_matting: alphaMatting,
+  });
+  return response.data;
+}
+
+export async function getForegroundMask(imageId: string): Promise<BackgroundResponse> {
+  const response = await api.post<BackgroundResponse>('/api/images/background/mask', {
+    image_id: imageId,
+  });
+  return response.data;
+}
+
+export async function getBackgroundTaskStatus(taskId: string): Promise<BackgroundTaskStatusResponse> {
+  const response = await api.get<BackgroundTaskStatusResponse>(`/api/images/background/tasks/${taskId}`);
+  return response.data;
+}
+
+// Style Transfer Types
+export interface StylePreset {
+  id: string;
+  name: string;
+  description: string;
+}
+
+export interface StylePresetsResponse {
+  styles: StylePreset[];
+}
+
+export interface StyleTransferResponse {
+  task_id: string;
+  status: string;
+  estimated_time: number;
+}
+
+export interface StyleTaskStatusResponse {
+  task_id: string;
+  status: string;
+  style?: string;
+  image?: {
+    id: string;
+    url: string;
+    width: number;
+    height: number;
+  };
+  error?: string;
+}
+
+// Style API Functions
+export async function getStylePresets(): Promise<StylePresetsResponse> {
+  const response = await api.get<StylePresetsResponse>('/api/images/style/presets');
+  return response.data;
+}
+
+export async function applyStyle(
+  imageId: string,
+  style: string,
+  prompt: string = '',
+  strength?: number,
+  seed?: number
+): Promise<StyleTransferResponse> {
+  const response = await api.post<StyleTransferResponse>('/api/images/style/apply', {
+    image_id: imageId,
+    style: style,
+    prompt: prompt,
+    strength: strength,
+    seed: seed,
+  });
+  return response.data;
+}
+
+export async function getStyleTaskStatus(taskId: string): Promise<StyleTaskStatusResponse> {
+  const response = await api.get<StyleTaskStatusResponse>(`/api/images/style/tasks/${taskId}`);
+  return response.data;
+}
+
 export default api;

@@ -5,7 +5,7 @@ import logging
 
 from app.config import settings
 from app.db.session import engine, Base
-from app.api import generate, tasks, gallery, stats, inpaint, edit_history
+from app.api import generate, tasks, gallery, stats, inpaint, edit_history, sam, background, style
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -59,6 +59,9 @@ app.include_router(stats.router, prefix="/api/v1/stats", tags=["stats"])
 app.include_router(stats.router, prefix="/api/v1/ml", tags=["ml"])
 app.include_router(inpaint.router, prefix="/api/v1/images", tags=["inpaint"])
 app.include_router(edit_history.router, prefix="/api/v1", tags=["edit-history"])
+app.include_router(sam.router, prefix="/api/v1/images", tags=["sam"])
+app.include_router(background.router, prefix="/api/v1/images", tags=["background"])
+app.include_router(style.router, prefix="/api/v1/images", tags=["style"])
 
 
 # Health check endpoint

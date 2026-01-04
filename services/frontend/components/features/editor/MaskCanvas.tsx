@@ -506,6 +506,29 @@ export function MaskCanvas({
     onMaskChange(maskDataUrl);
   }, [width, height, onMaskChange, saveToHistory]);
 
+  // Load external mask (e.g., from SAM or background removal)
+  const loadMask = useCallback((maskBase64: string) => {
+    const canvas = maskCanvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const img = new Image();
+    img.onload = () => {
+      // Clear current mask
+      ctx.clearRect(0, 0, width, height);
+      // Draw the loaded mask
+      ctx.drawImage(img, 0, 0, width, height);
+      // Save to history
+      saveToHistory();
+      // Notify parent
+      const maskDataUrl = canvas.toDataURL('image/png');
+      onMaskChange(maskDataUrl);
+    };
+    img.src = maskBase64;
+  }, [width, height, saveToHistory, onMaskChange]);
+
   // Grow mask - expand selection by radius pixels
   const growMask = useCallback((radius: number) => {
     const canvas = maskCanvasRef.current;
@@ -745,11 +768,12 @@ export function MaskCanvas({
       grow: growMask,
       shrink: shrinkMask,
       feather: featherMask,
+      loadMask: loadMask,
     };
     return () => {
       delete (window as any).__maskCanvas;
     };
-  }, [clearMask, fillAll, undo, redo, invertMask, growMask, shrinkMask, featherMask]);
+  }, [clearMask, fillAll, undo, redo, invertMask, growMask, shrinkMask, featherMask, loadMask]);
 
   const scaledWidth = width * scale;
   const scaledHeight = height * scale;

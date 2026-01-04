@@ -13,6 +13,11 @@ minio>=7.2.0
 
 # Image processing
 Pillow>=10.0.0
+rembg>=2.0.50
+onnxruntime-gpu>=1.16.0
+
+# Segment Anything Model
+segment-anything @ git+https://github.com/facebookresearch/segment-anything.git
 
 # Configuration
 pydantic>=2.5.0
