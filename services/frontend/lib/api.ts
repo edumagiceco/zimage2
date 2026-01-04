@@ -88,18 +88,21 @@ export interface GalleryParams {
 }
 
 export interface Template {
-  id: number;
+  id: string;
+  name: string;
+  description?: string;
   category: string;
-  title: string;
   prompt: string;
-  thumbnail: string;
-  size: string;
-  tags: string[];
+  negative_prompt?: string;
+  width: number;
+  height: number;
+  is_public: boolean;
+  thumbnail?: string;
 }
 
 export interface TemplatesResponse {
   templates: Template[];
-  categories: string[];
+  total: number;
 }
 
 export interface LoginRequest {
@@ -148,8 +151,14 @@ export async function deleteImage(imageId: string): Promise<void> {
   await api.delete(`/api/gallery/${imageId}`);
 }
 
-export async function getTemplates(): Promise<TemplatesResponse> {
-  const response = await api.get<TemplatesResponse>('/api/gallery/templates');
+export async function getTemplates(category?: string): Promise<TemplatesResponse> {
+  const params = category ? { category } : {};
+  const response = await api.get<TemplatesResponse>('/api/templates/', { params });
+  return response.data;
+}
+
+export async function getTemplateCategories(): Promise<{ categories: { id: string; name: string }[] }> {
+  const response = await api.get('/api/templates/categories');
   return response.data;
 }
 

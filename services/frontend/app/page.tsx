@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ImageGenerator } from '@/components/features/ImageGenerator';
 import { Button } from '@/components/ui/button';
 import { Sparkles, Zap, Image as ImageIcon, Palette, ShoppingBag, MessageSquare, Monitor, Smartphone } from 'lucide-react';
+import { type Template } from '@/lib/api';
 
 // 마케팅 템플릿 카테고리
 const TEMPLATE_CATEGORIES = [
@@ -126,16 +127,61 @@ const TEMPLATES = [
   },
 ];
 
+// Local template type for homepage templates
+interface LocalTemplate {
+  id: number;
+  category: string;
+  title: string;
+  prompt: string;
+  thumbnail: string;
+  size: string;
+  tags: string[];
+}
+
+// Convert API template to generator format
+function convertTemplateForGenerator(template: Template | LocalTemplate) {
+  if ('name' in template) {
+    // API Template
+    return {
+      id: parseInt(template.id.replace('template-', '')) || 0,
+      category: template.category,
+      title: template.name,
+      prompt: template.prompt,
+      thumbnail: '',
+      size: `${template.width}x${template.height}`,
+      tags: [],
+    };
+  }
+  // Local template
+  return template;
+}
+
 export default function HomePage() {
   const [selectedCategory, setSelectedCategory] = useState('all');
-  const [selectedTemplate, setSelectedTemplate] = useState<typeof TEMPLATES[0] | null>(null);
+  const [selectedTemplate, setSelectedTemplate] = useState<LocalTemplate | null>(null);
   const [showGenerator, setShowGenerator] = useState(false);
+
+  // Check for template from /templates page
+  useEffect(() => {
+    const storedTemplate = sessionStorage.getItem('selectedTemplate');
+    if (storedTemplate) {
+      try {
+        const template: Template = JSON.parse(storedTemplate);
+        const converted = convertTemplateForGenerator(template);
+        setSelectedTemplate(converted);
+        setShowGenerator(true);
+        sessionStorage.removeItem('selectedTemplate');
+      } catch (e) {
+        console.error('Failed to parse stored template', e);
+      }
+    }
+  }, []);
 
   const filteredTemplates = selectedCategory === 'all'
     ? TEMPLATES
     : TEMPLATES.filter(t => t.category === selectedCategory);
 
-  const handleTemplateSelect = (template: typeof TEMPLATES[0]) => {
+  const handleTemplateSelect = (template: LocalTemplate) => {
     setSelectedTemplate(template);
     setShowGenerator(true);
   };
