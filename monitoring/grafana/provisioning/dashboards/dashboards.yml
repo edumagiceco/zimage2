@@ -1,0 +1,15 @@
+# Grafana Dashboards Provisioning
+
+apiVersion: 1
+
+providers:
+  - name: 'Z-Image Dashboards'
+    orgId: 1
+    folder: 'Z-Image'
+    folderUid: 'zimage'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards

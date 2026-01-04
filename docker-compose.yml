@@ -1,0 +1,446 @@
+version: '3.8'
+
+name: zimage-platform
+
+services:
+  # ============================================
+  # Reverse Proxy / API Gateway (Traefik)
+  # ============================================
+  traefik:
+    image: traefik:v3.0
+    container_name: zimage-traefik
+    command:
+      - "--api.dashboard=true"
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--providers.file.directory=/etc/traefik/dynamic"
+      - "--providers.file.watch=true"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--log.level=INFO"
+      - "--accesslog=true"
+    ports:
+      - "8180:80"
+      - "8543:443"
+      - "8888:8080"  # Traefik Dashboard
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik/dynamic:/etc/traefik/dynamic:ro
+    networks:
+      - zimage-network
+    restart: unless-stopped
+
+  # ============================================
+  # Database
+  # ============================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: zimage-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-zimage}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-zimage_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-zimage}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - "5450:5432"
+    networks:
+      - zimage-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-zimage}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ============================================
+  # Cache & Message Broker
+  # ============================================
+  redis:
+    image: redis:7-alpine
+    container_name: zimage-redis
+    command: redis-server --appendonly yes --maxmemory 2gb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6390:6379"
+    networks:
+      - zimage-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ============================================
+  # Object Storage
+  # ============================================
+  minio:
+    image: minio/minio:latest
+    container_name: zimage-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin123}
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9020:9000"
+      - "9021:9001"
+    networks:
+      - zimage-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    restart: unless-stopped
+
+  # MinIO bucket initialization
+  minio-init:
+    image: minio/mc:latest
+    container_name: zimage-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set myminio http://minio:9000 ${MINIO_ROOT_USER:-minioadmin} ${MINIO_ROOT_PASSWORD:-minioadmin123};
+      mc mb myminio/zimage-images --ignore-existing;
+      mc anonymous set download myminio/zimage-images;
+      exit 0;
+      "
+    networks:
+      - zimage-network
+
+  # ============================================
+  # Frontend Service
+  # ============================================
+  frontend:
+    build:
+      context: ./services/frontend
+      dockerfile: Dockerfile
+      target: development
+    container_name: zimage-frontend
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_API_URL=http://${HOST_IP:-192.168.1.81}:8100
+      - NEXT_PUBLIC_APP_NAME=${APP_NAME:-Z-Image}
+    volumes:
+      - ./services/frontend:/app
+      - /app/node_modules
+      - /app/.next
+    ports:
+      - "8090:3000"
+    networks:
+      - zimage-network
+    depends_on:
+      - api-gateway
+    restart: unless-stopped
+
+  # ============================================
+  # Admin UI Service
+  # ============================================
+  admin-ui:
+    build:
+      context: ./services/admin-ui
+      dockerfile: Dockerfile
+      target: development
+    container_name: zimage-admin
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_API_URL=http://${HOST_IP:-192.168.1.81}:8100
+    volumes:
+      - ./services/admin-ui:/app
+      - /app/node_modules
+      - /app/.next
+    ports:
+      - "8091:3000"
+    networks:
+      - zimage-network
+    depends_on:
+      - api-gateway
+    restart: unless-stopped
+
+  # ============================================
+  # API Gateway Service
+  # ============================================
+  api-gateway:
+    build:
+      context: ./services/api-gateway
+      dockerfile: Dockerfile
+    container_name: zimage-api-gateway
+    environment:
+      - ENV=development
+      - AUTH_SERVICE_URL=http://auth-service:8001
+      - IMAGE_SERVICE_URL=http://image-service:8002
+      - GALLERY_SERVICE_URL=http://gallery-service:8003
+      - REDIS_URL=redis://redis:6379/0
+      - JWT_SECRET=${JWT_SECRET:-your-super-secret-jwt-key}
+      - RATE_LIMIT_PER_MINUTE=${RATE_LIMIT_PER_MINUTE:-60}
+      - CORS_ORIGINS=["http://${HOST_IP:-192.168.1.81}:8090","http://${HOST_IP:-192.168.1.81}:8091","http://localhost:8090"]
+    volumes:
+      - ./services/api-gateway:/app
+    ports:
+      - "8100:8000"
+    networks:
+      - zimage-network
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ============================================
+  # Auth Service
+  # ============================================
+  auth-service:
+    build:
+      context: ./services/auth-service
+      dockerfile: Dockerfile
+    container_name: zimage-auth-service
+    environment:
+      - ENV=development
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-zimage}:${POSTGRES_PASSWORD:-zimage_secret}@postgres:5432/${POSTGRES_DB:-zimage}
+      - REDIS_URL=redis://redis:6379/1
+      - JWT_SECRET=${JWT_SECRET:-your-super-secret-jwt-key}
+      - JWT_ALGORITHM=${JWT_ALGORITHM:-HS256}
+      - ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
+      - REFRESH_TOKEN_EXPIRE_DAYS=${REFRESH_TOKEN_EXPIRE_DAYS:-7}
+    volumes:
+      - ./services/auth-service:/app
+    ports:
+      - "8001:8001"
+    networks:
+      - zimage-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ============================================
+  # Image Service
+  # ============================================
+  image-service:
+    build:
+      context: ./services/image-service
+      dockerfile: Dockerfile
+    container_name: zimage-image-service
+    environment:
+      - ENV=development
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-zimage}:${POSTGRES_PASSWORD:-zimage_secret}@postgres:5432/${POSTGRES_DB:-zimage}
+      - REDIS_URL=redis://redis:6379/2
+      - CELERY_BROKER_URL=redis://redis:6379/3
+      - CELERY_RESULT_BACKEND=redis://redis:6379/4
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=${MINIO_ROOT_USER:-minioadmin}
+      - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD:-minioadmin123}
+      - MINIO_BUCKET=zimage-images
+      - MINIO_USE_SSL=false
+    volumes:
+      - ./services/image-service:/app
+    ports:
+      - "8002:8002"
+    networks:
+      - zimage-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ============================================
+  # Gallery Service
+  # ============================================
+  gallery-service:
+    build:
+      context: ./services/gallery-service
+      dockerfile: Dockerfile
+    container_name: zimage-gallery-service
+    environment:
+      - ENV=development
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-zimage}:${POSTGRES_PASSWORD:-zimage_secret}@postgres:5432/${POSTGRES_DB:-zimage}
+      - REDIS_URL=redis://redis:6379/5
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=${MINIO_ROOT_USER:-minioadmin}
+      - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD:-minioadmin123}
+      - MINIO_BUCKET=zimage-images
+      - MINIO_USE_SSL=false
+    volumes:
+      - ./services/gallery-service:/app
+    ports:
+      - "8003:8003"
+    networks:
+      - zimage-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ============================================
+  # ML Worker Service (GPU)
+  # ============================================
+  ml-worker:
+    build:
+      context: ./services/ml-worker
+      dockerfile: Dockerfile
+    container_name: zimage-ml-worker
+    environment:
+      - ENV=development
+      - CELERY_BROKER_URL=redis://redis:6379/3
+      - CELERY_RESULT_BACKEND=redis://redis:6379/4
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_EXTERNAL_URL=http://${HOST_IP:-192.168.1.81}:9020
+      - MINIO_ACCESS_KEY=${MINIO_ROOT_USER:-minioadmin}
+      - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD:-minioadmin123}
+      - MINIO_BUCKET=zimage-images
+      - MINIO_USE_SSL=false
+      - MODEL_PATH=/models
+      - HF_HOME=/models/huggingface
+      - CUDA_VISIBLE_DEVICES=0
+      - PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:512
+    volumes:
+      - ./services/ml-worker:/app
+      - ml_models:/models
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    networks:
+      - zimage-network
+    depends_on:
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ============================================
+  # Celery Task Monitor (Flower)
+  # ============================================
+  flower:
+    image: mher/flower:2.0
+    container_name: zimage-flower
+    command: celery --broker=redis://redis:6379/3 flower --port=5555
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/3
+      - FLOWER_BASIC_AUTH=${FLOWER_USER:-admin}:${FLOWER_PASSWORD:-admin123}
+    ports:
+      - "5555:5555"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.flower.rule=Host(`flower.localhost`)"
+      - "traefik.http.routers.flower.entrypoints=web"
+      - "traefik.http.services.flower.loadbalancer.server.port=5555"
+    networks:
+      - zimage-network
+    depends_on:
+      - redis
+      - ml-worker
+    restart: unless-stopped
+
+  # ============================================
+  # Monitoring - Prometheus
+  # ============================================
+  prometheus:
+    image: prom/prometheus:v2.47.0
+    container_name: zimage-prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=15d'
+      - '--web.enable-lifecycle'
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    networks:
+      - zimage-network
+    restart: unless-stopped
+
+  # ============================================
+  # Monitoring - Grafana
+  # ============================================
+  grafana:
+    image: grafana/grafana:10.1.0
+    container_name: zimage-grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin123}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_ROOT_URL=http://grafana.localhost
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "3002:3000"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.grafana.rule=Host(`grafana.localhost`)"
+      - "traefik.http.routers.grafana.entrypoints=web"
+      - "traefik.http.services.grafana.loadbalancer.server.port=3000"
+    networks:
+      - zimage-network
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+  # ============================================
+  # GPU Metrics Exporter
+  # ============================================
+  nvidia-exporter:
+    image: utkuozdemir/nvidia_gpu_exporter:1.2.0
+    container_name: zimage-nvidia-exporter
+    ports:
+      - "9835:9835"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    networks:
+      - zimage-network
+    restart: unless-stopped
+
+# ============================================
+# Networks
+# ============================================
+networks:
+  zimage-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+
+# ============================================
+# Volumes
+# ============================================
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  minio_data:
+    driver: local
+  ml_models:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
