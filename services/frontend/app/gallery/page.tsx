@@ -17,7 +17,9 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
+  Pencil,
 } from 'lucide-react';
+import Link from 'next/link';
 import { getGalleryImages, toggleFavorite, deleteImage, type GalleryImage } from '@/lib/api';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -372,6 +374,12 @@ export default function GalleryPage() {
 
                 {/* Actions */}
                 <div className="flex flex-wrap gap-2 pt-4 border-t">
+                  <Link href={`/edit/${selectedImage.id}`}>
+                    <Button variant="default" size="sm">
+                      <Pencil className="h-4 w-4 mr-2" />
+                      편집
+                    </Button>
+                  </Link>
                   <Button
                     variant="outline"
                     size="sm"

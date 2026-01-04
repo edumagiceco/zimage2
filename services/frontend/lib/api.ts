@@ -210,4 +210,47 @@ export async function refreshToken(): Promise<LoginResponse> {
   return response.data;
 }
 
+// Inpainting Types
+export interface InpaintRequest {
+  original_image_id: string;
+  mask_data: string;
+  prompt: string;
+  negative_prompt?: string;
+  strength?: number;
+  guidance_scale?: number;
+  num_inference_steps?: number;
+  seed?: number;
+}
+
+export interface InpaintResponse {
+  task_id: string;
+  status: string;
+  estimated_time: number;
+}
+
+export interface InpaintTaskStatusResponse {
+  task_id: string;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  progress: number;
+  progress_message?: string;
+  elapsed_seconds?: number;
+  estimated_seconds?: number;
+  original_image_url?: string;
+  images?: GeneratedImage[];
+  error?: string;
+  created_at?: string;
+  completed_at?: string;
+}
+
+// Inpainting API Functions
+export async function inpaintImage(request: InpaintRequest): Promise<InpaintResponse> {
+  const response = await api.post<InpaintResponse>('/api/images/inpaint', request);
+  return response.data;
+}
+
+export async function getInpaintTaskStatus(taskId: string): Promise<InpaintTaskStatusResponse> {
+  const response = await api.get<InpaintTaskStatusResponse>(`/api/images/inpaint/tasks/${taskId}`);
+  return response.data;
+}
+
 export default api;
