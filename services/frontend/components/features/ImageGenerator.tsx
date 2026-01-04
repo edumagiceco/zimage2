@@ -52,12 +52,22 @@ const SIZE_PRESETS = [
 
 const STYLE_PRESETS = [
   { label: '선택 안함', value: 'none' },
-  { label: '포토리얼리스틱', value: 'photorealistic, high quality, 8k, detailed' },
-  { label: '미니멀', value: 'minimal, clean, simple, modern design' },
-  { label: '일러스트', value: 'illustration, digital art, vibrant colors' },
-  { label: '3D 렌더', value: '3D render, octane render, studio lighting' },
-  { label: '플랫 디자인', value: 'flat design, vector art, simple shapes' },
+  { label: '포토리얼리스틱', value: 'photorealistic' },
+  { label: '미니멀', value: 'minimal' },
+  { label: '일러스트', value: 'illustration' },
+  { label: '3D 렌더', value: '3d-render' },
+  { label: '플랫 디자인', value: 'flat-design' },
 ];
+
+// Style preset text lookup - used when generating images
+const STYLE_PRESET_TEXT: Record<string, string> = {
+  'none': '',
+  'photorealistic': 'photorealistic, high quality, 8k, detailed, professional photography',
+  'minimal': 'minimal, clean, simple, modern design, white space',
+  'illustration': 'illustration, digital art, vibrant colors, artistic',
+  '3d-render': '3D render, octane render, studio lighting, realistic materials',
+  'flat-design': 'flat design, vector art, simple shapes, bold colors',
+};
 
 export function ImageGenerator({ initialTemplate }: ImageGeneratorProps) {
   const [prompt, setPrompt] = useState('');
@@ -126,7 +136,13 @@ export function ImageGenerator({ initialTemplate }: ImageGeneratorProps) {
     }
 
     const [width, height] = size.split('x').map(Number);
-    const fullPrompt = stylePreset && stylePreset !== 'none' ? `${prompt}, ${stylePreset}` : prompt;
+
+    // Get style text from lookup table
+    const styleText = STYLE_PRESET_TEXT[stylePreset] || '';
+    const fullPrompt = styleText ? `${prompt}, ${styleText}` : prompt;
+
+    console.log('Generating with style:', stylePreset, '-> Text:', styleText);
+    console.log('Full prompt:', fullPrompt);
 
     generateMutation.mutate({
       prompt: fullPrompt,
