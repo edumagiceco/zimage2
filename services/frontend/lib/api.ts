@@ -135,17 +135,17 @@ export async function getTaskStatus(taskId: string): Promise<TaskStatusResponse>
 }
 
 export async function getGalleryImages(params?: GalleryParams): Promise<GalleryResponse> {
-  const response = await api.get<GalleryResponse>('/api/gallery/images', { params });
+  const response = await api.get<GalleryResponse>('/api/gallery/', { params });
   return response.data;
 }
 
 export async function toggleFavorite(imageId: string): Promise<GalleryImage> {
-  const response = await api.post<GalleryImage>(`/api/gallery/images/${imageId}/favorite`);
+  const response = await api.post<GalleryImage>(`/api/gallery/${imageId}/favorite`);
   return response.data;
 }
 
 export async function deleteImage(imageId: string): Promise<void> {
-  await api.delete(`/api/gallery/images/${imageId}`);
+  await api.delete(`/api/gallery/${imageId}`);
 }
 
 export async function getTemplates(): Promise<TemplatesResponse> {

@@ -35,7 +35,22 @@ export function ImageGrid({ images, onFavorite }: ImageGridProps) {
 
   const handleCopyUrl = async (image: GeneratedImage) => {
     try {
-      await navigator.clipboard.writeText(image.url);
+      // Try modern clipboard API first
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(image.url);
+      } else {
+        // Fallback for HTTP environments
+        const textArea = document.createElement('textarea');
+        textArea.value = image.url;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-999999px';
+        textArea.style.top = '-999999px';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+      }
       setCopiedId(image.id);
       setTimeout(() => setCopiedId(null), 2000);
       toast.success('URL이 복사되었습니다.');
