@@ -1,4 +1,5 @@
 from celery import Celery
+from celery.signals import worker_ready
 
 from app.config import settings
 
@@ -9,6 +10,16 @@ celery_app = Celery(
     backend=settings.CELERY_RESULT_BACKEND,
     include=["app.tasks.image_generation"],
 )
+
+
+@worker_ready.connect
+def on_worker_ready(**kwargs):
+    """Start GPU monitor when worker is ready"""
+    from app.gpu_monitor import start_gpu_monitor, update_gpu_stats
+    # Initial update
+    update_gpu_stats()
+    # Start background monitoring
+    start_gpu_monitor()
 
 # Celery configuration
 celery_app.conf.update(

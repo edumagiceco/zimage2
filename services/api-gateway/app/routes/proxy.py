@@ -114,3 +114,9 @@ async def proxy_tags(request: Request, path: str):
 @router.api_route("/templates/{path:path}", methods=["GET", "POST", "PUT", "DELETE"])
 async def proxy_templates(request: Request, path: str):
     return await proxy_request(request, settings.GALLERY_SERVICE_URL, f"/templates/{path}")
+
+
+# Stats routes (for ML status, image stats, etc.)
+@router.api_route("/stats/{path:path}", methods=["GET"])
+async def proxy_stats(request: Request, path: str):
+    return await proxy_request(request, settings.IMAGE_SERVICE_URL, f"/stats/{path}")

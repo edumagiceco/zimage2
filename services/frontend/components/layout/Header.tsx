@@ -4,13 +4,14 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { ImageIcon, LayoutGrid, Layers, User, Menu } from 'lucide-react';
+import { ImageIcon, LayoutGrid, Layers, Settings, User, Menu } from 'lucide-react';
 import { useState } from 'react';
 
 const navigation = [
   { name: '이미지 생성', href: '/', icon: ImageIcon },
   { name: '갤러리', href: '/gallery', icon: LayoutGrid },
   { name: '템플릿', href: '/templates', icon: Layers },
+  { name: '설정', href: '/settings', icon: Settings },
 ];
 
 export function Header() {

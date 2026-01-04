@@ -8,7 +8,7 @@ import logging
 from app.config import settings
 from app.middleware.rate_limit import RateLimitMiddleware
 from app.middleware.auth import AuthMiddleware
-from app.routes import proxy
+from app.routes import proxy, system
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -61,6 +61,7 @@ app.add_middleware(RateLimitMiddleware)
 
 # Include routers
 app.include_router(proxy.router, prefix="/api")
+app.include_router(system.router, prefix="/api/system", tags=["system"])
 
 
 # Health check endpoint

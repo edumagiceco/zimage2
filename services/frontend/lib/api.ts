@@ -98,6 +98,7 @@ export interface Template {
   height: number;
   is_public: boolean;
   thumbnail?: string;
+  icon?: string;
 }
 
 export interface TemplatesResponse {
