@@ -99,7 +99,17 @@ export function ImageGenerator({ initialTemplate }: ImageGeneratorProps) {
       toast.info('이미지 생성을 시작했습니다...');
     },
     onError: (error: any) => {
-      toast.error(error.response?.data?.detail || '이미지 생성에 실패했습니다.');
+      const detail = error.response?.data?.detail;
+      let message = '이미지 생성에 실패했습니다.';
+
+      if (typeof detail === 'string') {
+        message = detail;
+      } else if (Array.isArray(detail) && detail.length > 0) {
+        // Pydantic v2 validation error format
+        message = detail.map((e: any) => e.msg || e.message || String(e)).join(', ');
+      }
+
+      toast.error(message);
     },
   });
 

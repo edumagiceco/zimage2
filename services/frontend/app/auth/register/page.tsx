@@ -29,7 +29,15 @@ export default function RegisterPage() {
       router.push('/');
     },
     onError: (error: any) => {
-      const message = error.response?.data?.detail || '회원가입에 실패했습니다.';
+      const detail = error.response?.data?.detail;
+      let message = '회원가입에 실패했습니다.';
+
+      if (typeof detail === 'string') {
+        message = detail;
+      } else if (Array.isArray(detail) && detail.length > 0) {
+        message = detail.map((e: any) => e.msg || e.message || String(e)).join(', ');
+      }
+
       toast.error(message);
     },
   });
