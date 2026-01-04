@@ -5,7 +5,7 @@ import logging
 
 from app.config import settings
 from app.db.session import engine, Base
-from app.api import generate, tasks
+from app.api import generate, tasks, gallery
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -54,6 +54,7 @@ app.add_middleware(
 # Include routers
 app.include_router(generate.router, prefix="/api/v1/images", tags=["images"])
 app.include_router(tasks.router, prefix="/api/v1/tasks", tags=["tasks"])
+app.include_router(gallery.router, prefix="/api/v1/gallery", tags=["gallery"])
 
 
 # Health check endpoint

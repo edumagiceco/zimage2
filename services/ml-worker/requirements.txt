@@ -1,9 +1,9 @@
-# ML/AI (torch installed separately in Dockerfile)
-diffusers==0.28.0
-transformers==4.40.0
+# ML/AI (torch pre-installed in NGC image)
+diffusers>=0.28.0
+transformers>=4.40.0
 accelerate>=0.25.0
 safetensors>=0.4.0
-xformers>=0.0.23
+# xformers removed - not compatible with ARM64
 
 # Celery
 celery[redis]>=5.3.0

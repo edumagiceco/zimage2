@@ -22,8 +22,10 @@ help: ## Show this help
 
 ## Development
 dev: ## Start development environment
+	@echo "${GREEN}Detecting server IP address...${RESET}"
+	@./scripts/detect-ip.sh update .env
 	@echo "${GREEN}Starting development environment...${RESET}"
-	docker compose up -d
+	@export HOST_IP=$$(./scripts/detect-ip.sh) && docker compose up -d
 	@echo ""
 	@echo "${GREEN}Development environment started!${RESET}"
 	@echo ""
@@ -33,21 +35,23 @@ dev: ## Start development environment
 	@echo "  API:         http://localhost:8100"
 	@echo "  API Docs:    http://localhost:8100/docs"
 	@echo ""
-	@echo "${CYAN}Available services (External - 192.168.1.81):${RESET}"
-	@echo "  Frontend:    http://192.168.1.81:8090"
-	@echo "  Admin:       http://192.168.1.81:8091"
-	@echo "  API:         http://192.168.1.81:8100"
+	@HOST=$$(./scripts/detect-ip.sh) && echo "${CYAN}Available services (External - $$HOST):${RESET}"
+	@HOST=$$(./scripts/detect-ip.sh) && echo "  Frontend:    http://$$HOST:8090"
+	@HOST=$$(./scripts/detect-ip.sh) && echo "  Admin:       http://$$HOST:8091"
+	@HOST=$$(./scripts/detect-ip.sh) && echo "  API:         http://$$HOST:8100"
 	@echo ""
-	@echo "${CYAN}Monitoring:${RESET}"
-	@echo "  Flower:      http://192.168.1.81:5555 (admin/admin123)"
-	@echo "  Grafana:     http://192.168.1.81:3002 (admin/admin123)"
-	@echo "  Traefik:     http://192.168.1.81:8888"
-	@echo "  MinIO:       http://192.168.1.81:9001 (minioadmin/minioadmin123)"
+	@HOST=$$(./scripts/detect-ip.sh) && echo "${CYAN}Monitoring:${RESET}"
+	@HOST=$$(./scripts/detect-ip.sh) && echo "  Flower:      http://$$HOST:5555 (admin/admin123)"
+	@HOST=$$(./scripts/detect-ip.sh) && echo "  Grafana:     http://$$HOST:3002 (admin/admin123)"
+	@HOST=$$(./scripts/detect-ip.sh) && echo "  Traefik:     http://$$HOST:8889"
+	@HOST=$$(./scripts/detect-ip.sh) && echo "  MinIO:       http://$$HOST:9021 (minioadmin/minioadmin123)"
 	@echo ""
 
 dev-build: ## Start development with fresh build
+	@echo "${GREEN}Detecting server IP address...${RESET}"
+	@./scripts/detect-ip.sh update .env
 	@echo "${GREEN}Building and starting development environment...${RESET}"
-	docker compose up -d --build
+	@export HOST_IP=$$(./scripts/detect-ip.sh) && docker compose up -d --build
 
 dev-infra: ## Start only infrastructure services
 	@echo "${GREEN}Starting infrastructure services...${RESET}"

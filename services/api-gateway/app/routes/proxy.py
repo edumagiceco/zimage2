@@ -14,7 +14,7 @@ SERVICE_ROUTES = {
     "/auth": settings.AUTH_SERVICE_URL,
     "/images": settings.IMAGE_SERVICE_URL,
     "/tasks": settings.IMAGE_SERVICE_URL,
-    "/gallery": settings.GALLERY_SERVICE_URL,
+    "/gallery": settings.IMAGE_SERVICE_URL,  # Gallery is now in image-service
     "/folders": settings.GALLERY_SERVICE_URL,
     "/tags": settings.GALLERY_SERVICE_URL,
     "/templates": settings.GALLERY_SERVICE_URL,
@@ -95,10 +95,10 @@ async def proxy_tasks(request: Request, path: str):
     return await proxy_request(request, settings.IMAGE_SERVICE_URL, f"/tasks/{path}")
 
 
-# Gallery routes
+# Gallery routes (now served by image-service)
 @router.api_route("/gallery/{path:path}", methods=["GET", "POST", "PUT", "DELETE"])
 async def proxy_gallery(request: Request, path: str):
-    return await proxy_request(request, settings.GALLERY_SERVICE_URL, f"/gallery/{path}")
+    return await proxy_request(request, settings.IMAGE_SERVICE_URL, f"/gallery/{path}")
 
 
 @router.api_route("/folders/{path:path}", methods=["GET", "POST", "PUT", "DELETE"])

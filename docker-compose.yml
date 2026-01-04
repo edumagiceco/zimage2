@@ -23,7 +23,7 @@ services:
     ports:
       - "8180:80"
       - "8543:443"
-      - "8888:8080"  # Traefik Dashboard
+      - "8889:8080"  # Traefik Dashboard
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./traefik/dynamic:/etc/traefik/dynamic:ro
@@ -212,7 +212,7 @@ services:
     volumes:
       - ./services/auth-service:/app
     ports:
-      - "8001:8001"
+      - "8201:8001"
     networks:
       - zimage-network
     depends_on:
@@ -244,7 +244,7 @@ services:
     volumes:
       - ./services/image-service:/app
     ports:
-      - "8002:8002"
+      - "8202:8002"
     networks:
       - zimage-network
     depends_on:
@@ -276,7 +276,7 @@ services:
     volumes:
       - ./services/gallery-service:/app
     ports:
-      - "8003:8003"
+      - "8203:8003"
     networks:
       - zimage-network
     depends_on:
@@ -426,7 +426,7 @@ networks:
     driver: bridge
     ipam:
       config:
-        - subnet: 172.28.0.0/16
+        - subnet: 172.29.0.0/16
 
 # ============================================
 # Volumes
