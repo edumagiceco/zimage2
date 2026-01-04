@@ -158,6 +158,15 @@ async def get_task_status(
                 progress_message = "이미지 생성 마무리 중..."
                 progress = 90
 
+    # Extract translation info from result
+    original_prompt = None
+    translated_prompt = None
+    was_translated = False
+    if task.result:
+        original_prompt = task.result.get("original_prompt")
+        translated_prompt = task.result.get("translated_prompt")
+        was_translated = task.result.get("was_translated", False)
+
     return TaskStatusResponse(
         task_id=task.id,
         status=task.status.value,
@@ -170,4 +179,7 @@ async def get_task_status(
         progress_message=progress_message,
         estimated_seconds=estimated_seconds,
         elapsed_seconds=elapsed_seconds,
+        original_prompt=original_prompt,
+        translated_prompt=translated_prompt,
+        was_translated=was_translated,
     )

@@ -57,6 +57,10 @@ export interface TaskStatusResponse {
   progress_message?: string;
   estimated_seconds?: number;
   elapsed_seconds?: number;
+  // Translation info
+  original_prompt?: string;
+  translated_prompt?: string;
+  was_translated?: boolean;
 }
 
 export interface GalleryImage {
@@ -251,6 +255,64 @@ export async function inpaintImage(request: InpaintRequest): Promise<InpaintResp
 export async function getInpaintTaskStatus(taskId: string): Promise<InpaintTaskStatusResponse> {
   const response = await api.get<InpaintTaskStatusResponse>(`/api/images/inpaint/tasks/${taskId}`);
   return response.data;
+}
+
+// Edit History Types
+export interface EditHistoryItem {
+  id: string;
+  user_id: string;
+  original_image_id: string;
+  edited_image_id: string;
+  inpaint_task_id?: string;
+  edit_type: string;
+  prompt?: string;
+  negative_prompt?: string;
+  strength?: number;
+  original_thumbnail_url?: string;
+  edited_thumbnail_url?: string;
+  edit_metadata: Record<string, any>;
+  created_at: string;
+}
+
+export interface EditHistoryListResponse {
+  items: EditHistoryItem[];
+  total: number;
+  page: number;
+  page_size: number;
+  has_more: boolean;
+}
+
+// Edit History API Functions
+export async function getImageEditHistory(
+  imageId: string,
+  page: number = 1,
+  pageSize: number = 20
+): Promise<EditHistoryListResponse> {
+  const response = await api.get<EditHistoryListResponse>(
+    `/api/images/${imageId}/edit-history`,
+    { params: { page, page_size: pageSize } }
+  );
+  return response.data;
+}
+
+export async function getAllEditHistory(
+  page: number = 1,
+  pageSize: number = 20
+): Promise<EditHistoryListResponse> {
+  const response = await api.get<EditHistoryListResponse>(
+    '/api/edit-history',
+    { params: { page, page_size: pageSize } }
+  );
+  return response.data;
+}
+
+export async function getEditHistoryDetail(historyId: string): Promise<EditHistoryItem> {
+  const response = await api.get<EditHistoryItem>(`/api/edit-history/${historyId}`);
+  return response.data;
+}
+
+export async function deleteEditHistory(historyId: string): Promise<void> {
+  await api.delete(`/api/edit-history/${historyId}`);
 }
 
 export default api;

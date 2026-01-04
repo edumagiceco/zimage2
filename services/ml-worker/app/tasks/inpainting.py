@@ -10,6 +10,7 @@ from PIL import Image
 
 from app.config import settings
 from app.ml.inpaint_pipeline import get_inpaint_pipeline
+from app.ml.translation_pipeline import translate_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -104,6 +105,20 @@ def inpaint_image(
         # Ensure bucket exists
         ensure_bucket_exists()
 
+        # Translate prompt if needed (Korean -> English)
+        original_prompt = prompt
+        translated_prompt, was_translated = translate_prompt(prompt)
+
+        if was_translated:
+            logger.info(f"Translated prompt: {translated_prompt[:100]}...")
+            prompt = translated_prompt
+
+        # Also translate negative prompt if needed
+        if negative_prompt:
+            translated_negative, neg_was_translated = translate_prompt(negative_prompt)
+            if neg_was_translated:
+                negative_prompt = translated_negative
+
         # Load original image
         logger.info(f"Loading original image from: {original_image_url}")
         original_image = load_image_from_url(original_image_url)
@@ -186,6 +201,9 @@ def inpaint_image(
             "status": "completed",
             "images": image_results,
             "mask_object_name": mask_object_name,
+            "original_prompt": original_prompt,
+            "translated_prompt": translated_prompt if was_translated else None,
+            "was_translated": was_translated,
         }
 
         logger.info(f"Inpainting task {task_id} completed successfully.")

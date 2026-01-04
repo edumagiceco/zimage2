@@ -2,13 +2,15 @@
 
 import { useRef, useEffect, useState, useCallback } from 'react';
 
+export type ToolMode = 'brush' | 'eraser' | 'rectangle' | 'lasso';
+
 interface MaskCanvasProps {
   imageUrl: string;
   width: number;
   height: number;
   brushSize: number;
-  brushHardness: number; // 0-100, 0=soft, 100=hard
-  brushMode: 'brush' | 'eraser';
+  brushHardness: number;
+  toolMode: ToolMode;
   onMaskChange: (maskDataUrl: string) => void;
   onHistoryChange?: (canUndo: boolean, canRedo: boolean) => void;
 }
@@ -21,15 +23,18 @@ export function MaskCanvas({
   height,
   brushSize,
   brushHardness,
-  brushMode,
+  toolMode,
   onMaskChange,
   onHistoryChange,
 }: MaskCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const imageCanvasRef = useRef<HTMLCanvasElement>(null);
   const maskCanvasRef = useRef<HTMLCanvasElement>(null);
+  const previewCanvasRef = useRef<HTMLCanvasElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [lastPos, setLastPos] = useState<{ x: number; y: number } | null>(null);
+  const [startPos, setStartPos] = useState<{ x: number; y: number } | null>(null);
+  const [lassoPoints, setLassoPoints] = useState<{ x: number; y: number }[]>([]);
   const [scale, setScale] = useState(1);
   const [imageLoaded, setImageLoaded] = useState(false);
 
@@ -58,13 +63,9 @@ export function MaskCanvas({
 
     const imageData = ctx.getImageData(0, 0, width, height);
 
-    // Remove any redo states
     historyRef.current = historyRef.current.slice(0, historyIndexRef.current + 1);
-
-    // Add new state
     historyRef.current.push(imageData);
 
-    // Limit history size
     if (historyRef.current.length > MAX_HISTORY) {
       historyRef.current.shift();
     } else {
@@ -131,14 +132,11 @@ export function MaskCanvas({
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.onload = () => {
-      // Draw image
       imageCtx.clearRect(0, 0, width, height);
       imageCtx.drawImage(img, 0, 0, width, height);
 
-      // Clear mask
       maskCtx.clearRect(0, 0, width, height);
 
-      // Initialize history
       historyRef.current = [maskCtx.getImageData(0, 0, width, height)];
       historyIndexRef.current = 0;
       onHistoryChange?.(false, false);
@@ -179,9 +177,8 @@ export function MaskCanvas({
       const radius = brushSize / 2;
       const gradient = ctx.createRadialGradient(x, y, 0, x, y, radius);
 
-      // Hardness affects the gradient falloff
       const hardnessNormalized = brushHardness / 100;
-      const innerStop = hardnessNormalized * 0.9; // Where full opacity ends
+      const innerStop = hardnessNormalized * 0.9;
 
       gradient.addColorStop(0, 'rgba(255, 0, 0, 0.5)');
       gradient.addColorStop(innerStop, 'rgba(255, 0, 0, 0.5)');
@@ -192,7 +189,8 @@ export function MaskCanvas({
     [brushSize, brushHardness]
   );
 
-  const draw = useCallback(
+  // Draw brush stroke
+  const drawBrush = useCallback(
     (x: number, y: number) => {
       const canvas = maskCanvasRef.current;
       if (!canvas) return;
@@ -201,9 +199,8 @@ export function MaskCanvas({
       if (!ctx) return;
 
       ctx.globalCompositeOperation =
-        brushMode === 'eraser' ? 'destination-out' : 'source-over';
+        toolMode === 'eraser' ? 'destination-out' : 'source-over';
 
-      // Draw line from last position
       if (lastPos) {
         const distance = Math.sqrt(
           Math.pow(x - lastPos.x, 2) + Math.pow(y - lastPos.y, 2)
@@ -218,7 +215,7 @@ export function MaskCanvas({
           ctx.beginPath();
           ctx.arc(ix, iy, brushSize / 2, 0, Math.PI * 2);
 
-          if (brushHardness < 100 && brushMode !== 'eraser') {
+          if (brushHardness < 100 && toolMode !== 'eraser') {
             ctx.fillStyle = createBrushGradient(ctx, ix, iy);
           } else {
             ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
@@ -226,11 +223,10 @@ export function MaskCanvas({
           ctx.fill();
         }
       } else {
-        // Single dot
         ctx.beginPath();
         ctx.arc(x, y, brushSize / 2, 0, Math.PI * 2);
 
-        if (brushHardness < 100 && brushMode !== 'eraser') {
+        if (brushHardness < 100 && toolMode !== 'eraser') {
           ctx.fillStyle = createBrushGradient(ctx, x, y);
         } else {
           ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
@@ -240,7 +236,135 @@ export function MaskCanvas({
 
       setLastPos({ x, y });
     },
-    [brushMode, brushSize, brushHardness, lastPos, createBrushGradient]
+    [toolMode, brushSize, brushHardness, lastPos, createBrushGradient]
+  );
+
+  // Draw rectangle preview
+  const drawRectPreview = useCallback(
+    (currentPos: { x: number; y: number }) => {
+      const previewCanvas = previewCanvasRef.current;
+      if (!previewCanvas || !startPos) return;
+
+      const ctx = previewCanvas.getContext('2d');
+      if (!ctx) return;
+
+      ctx.clearRect(0, 0, width, height);
+      ctx.strokeStyle = 'rgba(255, 0, 0, 0.8)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([5, 5]);
+
+      const rectX = Math.min(startPos.x, currentPos.x);
+      const rectY = Math.min(startPos.y, currentPos.y);
+      const rectWidth = Math.abs(currentPos.x - startPos.x);
+      const rectHeight = Math.abs(currentPos.y - startPos.y);
+
+      ctx.strokeRect(rectX, rectY, rectWidth, rectHeight);
+      ctx.fillStyle = 'rgba(255, 0, 0, 0.2)';
+      ctx.fillRect(rectX, rectY, rectWidth, rectHeight);
+    },
+    [startPos, width, height]
+  );
+
+  // Draw lasso preview
+  const drawLassoPreview = useCallback(
+    (points: { x: number; y: number }[]) => {
+      const previewCanvas = previewCanvasRef.current;
+      if (!previewCanvas || points.length < 2) return;
+
+      const ctx = previewCanvas.getContext('2d');
+      if (!ctx) return;
+
+      ctx.clearRect(0, 0, width, height);
+      ctx.strokeStyle = 'rgba(255, 0, 0, 0.8)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([5, 5]);
+
+      ctx.beginPath();
+      ctx.moveTo(points[0].x, points[0].y);
+      for (let i = 1; i < points.length; i++) {
+        ctx.lineTo(points[i].x, points[i].y);
+      }
+      ctx.stroke();
+
+      // Draw fill preview
+      if (points.length > 2) {
+        ctx.fillStyle = 'rgba(255, 0, 0, 0.2)';
+        ctx.beginPath();
+        ctx.moveTo(points[0].x, points[0].y);
+        for (let i = 1; i < points.length; i++) {
+          ctx.lineTo(points[i].x, points[i].y);
+        }
+        ctx.closePath();
+        ctx.fill();
+      }
+    },
+    [width, height]
+  );
+
+  // Apply rectangle to mask
+  const applyRectangle = useCallback(
+    (endPos: { x: number; y: number }) => {
+      const canvas = maskCanvasRef.current;
+      if (!canvas || !startPos) return;
+
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      const rectX = Math.min(startPos.x, endPos.x);
+      const rectY = Math.min(startPos.y, endPos.y);
+      const rectWidth = Math.abs(endPos.x - startPos.x);
+      const rectHeight = Math.abs(endPos.y - startPos.y);
+
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
+      ctx.fillRect(rectX, rectY, rectWidth, rectHeight);
+
+      // Clear preview
+      const previewCanvas = previewCanvasRef.current;
+      if (previewCanvas) {
+        const previewCtx = previewCanvas.getContext('2d');
+        previewCtx?.clearRect(0, 0, width, height);
+      }
+
+      saveToHistory();
+      const maskDataUrl = canvas.toDataURL('image/png');
+      onMaskChange(maskDataUrl);
+    },
+    [startPos, width, height, saveToHistory, onMaskChange]
+  );
+
+  // Apply lasso to mask
+  const applyLasso = useCallback(
+    (points: { x: number; y: number }[]) => {
+      const canvas = maskCanvasRef.current;
+      if (!canvas || points.length < 3) return;
+
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
+
+      ctx.beginPath();
+      ctx.moveTo(points[0].x, points[0].y);
+      for (let i = 1; i < points.length; i++) {
+        ctx.lineTo(points[i].x, points[i].y);
+      }
+      ctx.closePath();
+      ctx.fill();
+
+      // Clear preview
+      const previewCanvas = previewCanvasRef.current;
+      if (previewCanvas) {
+        const previewCtx = previewCanvas.getContext('2d');
+        previewCtx?.clearRect(0, 0, width, height);
+      }
+
+      saveToHistory();
+      const maskDataUrl = canvas.toDataURL('image/png');
+      onMaskChange(maskDataUrl);
+    },
+    [width, height, saveToHistory, onMaskChange]
   );
 
   const handleStart = useCallback(
@@ -250,11 +374,18 @@ export function MaskCanvas({
       if (!pos) return;
 
       setIsDrawing(true);
-      setLastPos(null); // Reset lastPos to draw single dot first
-      draw(pos.x, pos.y);
-      setLastPos(pos);
+
+      if (toolMode === 'brush' || toolMode === 'eraser') {
+        setLastPos(null);
+        drawBrush(pos.x, pos.y);
+        setLastPos(pos);
+      } else if (toolMode === 'rectangle') {
+        setStartPos(pos);
+      } else if (toolMode === 'lasso') {
+        setLassoPoints([pos]);
+      }
     },
-    [getCanvasCoordinates, draw]
+    [getCanvasCoordinates, toolMode, drawBrush]
   );
 
   const handleMove = useCallback(
@@ -265,27 +396,52 @@ export function MaskCanvas({
       const pos = getCanvasCoordinates(e);
       if (!pos) return;
 
-      draw(pos.x, pos.y);
+      if (toolMode === 'brush' || toolMode === 'eraser') {
+        drawBrush(pos.x, pos.y);
+      } else if (toolMode === 'rectangle') {
+        drawRectPreview(pos);
+      } else if (toolMode === 'lasso') {
+        const newPoints = [...lassoPoints, pos];
+        setLassoPoints(newPoints);
+        drawLassoPreview(newPoints);
+      }
     },
-    [isDrawing, getCanvasCoordinates, draw]
+    [isDrawing, getCanvasCoordinates, toolMode, drawBrush, drawRectPreview, lassoPoints, drawLassoPreview]
   );
 
-  const handleEnd = useCallback(() => {
-    if (isDrawing) {
-      setIsDrawing(false);
-      setLastPos(null);
+  const handleEnd = useCallback(
+    (e?: React.MouseEvent | React.TouchEvent) => {
+      if (!isDrawing) return;
 
-      // Save to history
-      saveToHistory();
+      if (toolMode === 'brush' || toolMode === 'eraser') {
+        setIsDrawing(false);
+        setLastPos(null);
+        saveToHistory();
 
-      // Export mask data
-      const canvas = maskCanvasRef.current;
-      if (canvas) {
-        const maskDataUrl = canvas.toDataURL('image/png');
-        onMaskChange(maskDataUrl);
+        const canvas = maskCanvasRef.current;
+        if (canvas) {
+          const maskDataUrl = canvas.toDataURL('image/png');
+          onMaskChange(maskDataUrl);
+        }
+      } else if (toolMode === 'rectangle') {
+        if (e) {
+          const pos = getCanvasCoordinates(e);
+          if (pos && startPos) {
+            applyRectangle(pos);
+          }
+        }
+        setIsDrawing(false);
+        setStartPos(null);
+      } else if (toolMode === 'lasso') {
+        if (lassoPoints.length >= 3) {
+          applyLasso(lassoPoints);
+        }
+        setIsDrawing(false);
+        setLassoPoints([]);
       }
-    }
-  }, [isDrawing, onMaskChange, saveToHistory]);
+    },
+    [isDrawing, toolMode, saveToHistory, onMaskChange, getCanvasCoordinates, startPos, applyRectangle, lassoPoints, applyLasso]
+  );
 
   // Clear mask
   const clearMask = useCallback(() => {
@@ -316,6 +472,40 @@ export function MaskCanvas({
     onMaskChange(maskDataUrl);
   }, [width, height, onMaskChange, saveToHistory]);
 
+  // Invert mask
+  const invertMask = useCallback(() => {
+    const canvas = maskCanvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const imageData = ctx.getImageData(0, 0, width, height);
+    const data = imageData.data;
+
+    for (let i = 0; i < data.length; i += 4) {
+      // Check if pixel has any mask (alpha > 0)
+      if (data[i + 3] > 0) {
+        // Clear this pixel
+        data[i] = 0;
+        data[i + 1] = 0;
+        data[i + 2] = 0;
+        data[i + 3] = 0;
+      } else {
+        // Fill this pixel
+        data[i] = 255;
+        data[i + 1] = 0;
+        data[i + 2] = 0;
+        data[i + 3] = 128;
+      }
+    }
+
+    ctx.putImageData(imageData, 0, 0);
+    saveToHistory();
+    const maskDataUrl = canvas.toDataURL('image/png');
+    onMaskChange(maskDataUrl);
+  }, [width, height, onMaskChange, saveToHistory]);
+
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -327,11 +517,22 @@ export function MaskCanvas({
           undo();
         }
       }
+      // Escape to cancel current operation
+      if (e.key === 'Escape' && isDrawing) {
+        setIsDrawing(false);
+        setStartPos(null);
+        setLassoPoints([]);
+        const previewCanvas = previewCanvasRef.current;
+        if (previewCanvas) {
+          const ctx = previewCanvas.getContext('2d');
+          ctx?.clearRect(0, 0, width, height);
+        }
+      }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [undo, redo]);
+  }, [undo, redo, isDrawing, width, height]);
 
   // Expose methods via ref
   useEffect(() => {
@@ -340,14 +541,27 @@ export function MaskCanvas({
       fillAll: fillAll,
       undo: undo,
       redo: redo,
+      invert: invertMask,
     };
     return () => {
       delete (window as any).__maskCanvas;
     };
-  }, [clearMask, fillAll, undo, redo]);
+  }, [clearMask, fillAll, undo, redo, invertMask]);
 
   const scaledWidth = width * scale;
   const scaledHeight = height * scale;
+
+  // Cursor based on tool
+  const getCursor = () => {
+    switch (toolMode) {
+      case 'rectangle':
+        return 'crosshair';
+      case 'lasso':
+        return 'crosshair';
+      default:
+        return 'crosshair';
+    }
+  };
 
   return (
     <div
@@ -384,15 +598,32 @@ export function MaskCanvas({
           ref={maskCanvasRef}
           width={width}
           height={height}
-          className="absolute inset-0 cursor-crosshair"
+          className="absolute inset-0"
           style={{
             width: scaledWidth,
             height: scaledHeight,
           }}
+        />
+
+        {/* Preview layer for rectangle/lasso */}
+        <canvas
+          ref={previewCanvasRef}
+          width={width}
+          height={height}
+          className="absolute inset-0"
+          style={{
+            width: scaledWidth,
+            height: scaledHeight,
+            cursor: getCursor(),
+          }}
           onMouseDown={handleStart}
           onMouseMove={handleMove}
           onMouseUp={handleEnd}
-          onMouseLeave={handleEnd}
+          onMouseLeave={() => {
+            if (toolMode === 'brush' || toolMode === 'eraser') {
+              handleEnd();
+            }
+          }}
           onTouchStart={handleStart}
           onTouchMove={handleMove}
           onTouchEnd={handleEnd}

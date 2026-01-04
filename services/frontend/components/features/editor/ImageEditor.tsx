@@ -18,9 +18,10 @@ import {
   XCircle,
   Timer,
 } from 'lucide-react';
-import { MaskCanvas } from './MaskCanvas';
+import { MaskCanvas, type ToolMode } from './MaskCanvas';
 import { BrushToolbar } from './BrushToolbar';
 import { ResultComparison } from './ResultComparison';
+import { EditHistoryPanel } from './EditHistoryPanel';
 import {
   inpaintImage,
   getInpaintTaskStatus,
@@ -42,7 +43,7 @@ export function ImageEditor({ image }: ImageEditorProps) {
   const [strength, setStrength] = useState(0.85);
   const [brushSize, setBrushSize] = useState(30);
   const [brushHardness, setBrushHardness] = useState(80);
-  const [brushMode, setBrushMode] = useState<'brush' | 'eraser'>('brush');
+  const [toolMode, setToolMode] = useState<ToolMode>('brush');
   const [taskId, setTaskId] = useState<string | null>(null);
   const [resultImages, setResultImages] = useState<GeneratedImage[]>([]);
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -139,6 +140,12 @@ export function ImageEditor({ image }: ImageEditorProps) {
     }
   };
 
+  const handleInvert = () => {
+    if ((window as any).__maskCanvas) {
+      (window as any).__maskCanvas.invert();
+    }
+  };
+
   const handleDownload = (imageUrl: string, index: number) => {
     const link = document.createElement('a');
     link.href = imageUrl;
@@ -212,7 +219,7 @@ export function ImageEditor({ image }: ImageEditorProps) {
               height={image.height}
               brushSize={brushSize}
               brushHardness={brushHardness}
-              brushMode={brushMode}
+              toolMode={toolMode}
               onMaskChange={setMaskData}
               onHistoryChange={handleHistoryChange}
             />
@@ -380,16 +387,17 @@ export function ImageEditor({ image }: ImageEditorProps) {
             <BrushToolbar
               brushSize={brushSize}
               brushHardness={brushHardness}
-              brushMode={brushMode}
+              toolMode={toolMode}
               canUndo={canUndo}
               canRedo={canRedo}
               onBrushSizeChange={setBrushSize}
               onBrushHardnessChange={setBrushHardness}
-              onBrushModeChange={setBrushMode}
+              onToolModeChange={setToolMode}
               onClear={handleClearMask}
               onFillAll={handleFillAll}
               onUndo={handleUndo}
               onRedo={handleRedo}
+              onInvert={handleInvert}
             />
 
             {/* Original Image Info */}
@@ -401,6 +409,11 @@ export function ImageEditor({ image }: ImageEditorProps) {
                   프롬프트: {image.prompt}
                 </p>
               </div>
+            </div>
+
+            {/* Edit History */}
+            <div className="p-4 bg-card rounded-lg border">
+              <EditHistoryPanel imageId={image.id} />
             </div>
           </div>
         </div>

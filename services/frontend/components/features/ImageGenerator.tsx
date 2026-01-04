@@ -11,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Loader2, Sparkles, Download, Heart, RefreshCw, Clock, Cpu } from 'lucide-react';
+import { Loader2, Sparkles, Download, Heart, RefreshCw, Clock, Cpu, Languages } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { generateImage, getTaskStatus, type GeneratedImage } from '@/lib/api';
 import { ImageGrid } from './ImageGrid';
@@ -78,6 +78,10 @@ export function ImageGenerator({ initialTemplate }: ImageGeneratorProps) {
   const [taskId, setTaskId] = useState<string | null>(null);
   const [generatedImages, setGeneratedImages] = useState<GeneratedImage[]>([]);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [translationInfo, setTranslationInfo] = useState<{
+    original: string;
+    translated: string;
+  } | null>(null);
 
   // Apply template when it changes
   useEffect(() => {
@@ -132,7 +136,18 @@ export function ImageGenerator({ initialTemplate }: ImageGeneratorProps) {
     if (taskStatus?.status === 'completed' && taskStatus.images) {
       setGeneratedImages(taskStatus.images);
       setTaskId(null);
-      toast.success(`${taskStatus.images.length}개의 이미지가 생성되었습니다!`);
+
+      // Show translation info if prompt was translated
+      if (taskStatus.was_translated && taskStatus.original_prompt && taskStatus.translated_prompt) {
+        setTranslationInfo({
+          original: taskStatus.original_prompt,
+          translated: taskStatus.translated_prompt,
+        });
+        toast.success(`${taskStatus.images.length}개의 이미지가 생성되었습니다! (프롬프트가 영어로 번역됨)`);
+      } else {
+        setTranslationInfo(null);
+        toast.success(`${taskStatus.images.length}개의 이미지가 생성되었습니다!`);
+      }
     } else if (taskStatus?.status === 'failed') {
       setTaskId(null);
       toast.error(taskStatus.error || '이미지 생성에 실패했습니다.');
@@ -374,12 +389,35 @@ export function ImageGenerator({ initialTemplate }: ImageGeneratorProps) {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setGeneratedImages([])}
+              onClick={() => {
+                setGeneratedImages([]);
+                setTranslationInfo(null);
+              }}
             >
               <RefreshCw className="h-4 w-4 mr-2" />
               초기화
             </Button>
           </div>
+
+          {/* Translation Info */}
+          {translationInfo && (
+            <div className="p-4 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg">
+              <div className="flex items-start gap-3">
+                <Languages className="h-5 w-5 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
+                <div className="space-y-2 text-sm">
+                  <div>
+                    <span className="font-medium text-blue-700 dark:text-blue-300">원본 (한글):</span>
+                    <p className="text-blue-600 dark:text-blue-400">{translationInfo.original}</p>
+                  </div>
+                  <div>
+                    <span className="font-medium text-blue-700 dark:text-blue-300">번역됨 (영어):</span>
+                    <p className="text-blue-600 dark:text-blue-400">{translationInfo.translated}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           <ImageGrid images={generatedImages} />
         </div>
       )}

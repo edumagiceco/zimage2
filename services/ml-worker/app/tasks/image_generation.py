@@ -7,6 +7,7 @@ from typing import Dict, Any, Optional
 
 from app.config import settings
 from app.ml.pipeline import get_pipeline
+from app.ml.translation_pipeline import translate_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +72,21 @@ def generate_image(
         # Ensure bucket exists
         ensure_bucket_exists()
 
+        # Translate prompt if needed (Korean -> English)
+        original_prompt = prompt
+        translated_prompt, was_translated = translate_prompt(prompt)
+
+        if was_translated:
+            logger.info(f"Translated prompt: {translated_prompt[:100]}...")
+            prompt = translated_prompt
+
+        # Also translate negative prompt if needed
+        original_negative_prompt = negative_prompt
+        if negative_prompt:
+            translated_negative, neg_was_translated = translate_prompt(negative_prompt)
+            if neg_was_translated:
+                negative_prompt = translated_negative
+
         # Get pipeline
         pipeline = get_pipeline()
 
@@ -121,6 +137,9 @@ def generate_image(
             "task_id": task_id,
             "status": "completed",
             "images": image_results,
+            "original_prompt": original_prompt,
+            "translated_prompt": translated_prompt if was_translated else None,
+            "was_translated": was_translated,
         }
 
         logger.info(f"Task {task_id} completed successfully. Generated {len(image_results)} images.")

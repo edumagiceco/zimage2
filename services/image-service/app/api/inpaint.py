@@ -10,6 +10,7 @@ from app.db.session import get_db
 from app.config import settings
 from app.models.image import Image
 from app.models.inpaint_task import InpaintTask
+from app.models.edit_history import EditHistory
 from app.models.task import TaskStatus
 from app.schemas.inpaint import (
     InpaintRequest,
@@ -145,12 +146,63 @@ async def get_inpaint_task_status(
                         task.result = result_data.get("images", [])
                         task.mask_object_name = result_data.get("mask_object_name")
                         task.completed_at = datetime.utcnow()
+                        await db.flush()
+
+                        # Create Image record and EditHistory for each result
+                        for img_data in task.result:
+                            # Create Image record for edited image
+                            edited_image = Image(
+                                id=UUID(img_data.get("id")),
+                                user_id=task.user_id,
+                                url=img_data.get("url"),
+                                object_name=img_data.get("object_name"),
+                                prompt=task.prompt,
+                                negative_prompt=task.negative_prompt,
+                                width=img_data.get("width", 0),
+                                height=img_data.get("height", 0),
+                                seed=img_data.get("seed"),
+                                image_metadata={
+                                    "type": "inpainted",
+                                    "original_image_id": str(task.original_image_id),
+                                    "inpaint_task_id": str(task.id),
+                                    "strength": task.strength,
+                                },
+                            )
+                            db.add(edited_image)
+
+                            # Get original image thumbnail
+                            orig_result = await db.execute(
+                                select(Image).where(Image.id == task.original_image_id)
+                            )
+                            orig_img = orig_result.scalar_one_or_none()
+
+                            # Create EditHistory record
+                            edit_history = EditHistory(
+                                user_id=task.user_id,
+                                original_image_id=task.original_image_id,
+                                edited_image_id=UUID(img_data.get("id")),
+                                inpaint_task_id=task.id,
+                                edit_type="inpaint",
+                                prompt=task.prompt,
+                                negative_prompt=task.negative_prompt,
+                                strength=task.strength,
+                                mask_object_name=task.mask_object_name,
+                                original_thumbnail_url=(orig_img.thumbnail_url or orig_img.url) if orig_img else None,
+                                edited_thumbnail_url=img_data.get("url"),
+                                edit_metadata={
+                                    "guidance_scale": task.guidance_scale,
+                                    "num_inference_steps": task.num_inference_steps,
+                                    "seed": img_data.get("seed"),
+                                },
+                            )
+                            db.add(edit_history)
+
+                        await db.flush()
                     elif result_data.get("status") == "failed":
                         task.status = TaskStatus.FAILED
                         task.error = result_data.get("error")
                         task.completed_at = datetime.utcnow()
-
-                    await db.flush()
+                        await db.flush()
             elif celery_result.state == "STARTED":
                 task.status = TaskStatus.PROCESSING
                 if not task.started_at:

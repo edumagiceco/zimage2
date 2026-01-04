@@ -26,6 +26,10 @@ class Settings(BaseSettings):
     MODEL_NAME: str = "stabilityai/sdxl-turbo"
     HF_HOME: str = "/models/huggingface"
 
+    # Translation Model (Qwen2.5-3B-Instruct for Korean to English)
+    TRANSLATION_MODEL_NAME: str = "Qwen/Qwen2.5-3B-Instruct"
+    ENABLE_TRANSLATION: bool = True
+
     # GPU Settings
     CUDA_VISIBLE_DEVICES: str = "0"
 

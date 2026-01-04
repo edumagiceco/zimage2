@@ -34,5 +34,10 @@ class TaskStatusResponse(BaseModel):
     estimated_seconds: Optional[float] = None
     elapsed_seconds: Optional[float] = None
 
+    # Translation info
+    original_prompt: Optional[str] = None
+    translated_prompt: Optional[str] = None
+    was_translated: bool = False
+
     class Config:
         from_attributes = True
