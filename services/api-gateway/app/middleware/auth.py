@@ -15,9 +15,14 @@ PUBLIC_PATHS = [
     "/docs",
     "/redoc",
     "/openapi.json",
-    "/v1/auth/login",
-    "/v1/auth/register",
-    "/v1/auth/refresh",
+    "/api/auth/login",
+    "/api/auth/register",
+    "/api/auth/refresh",
+    "/api/system/",
+    "/api/templates/",
+    "/api/gallery/",
+    "/api/images/",
+    "/api/tasks/",
 ]
 
 

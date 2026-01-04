@@ -111,21 +111,30 @@ export interface LoginRequest {
   password: string;
 }
 
-export interface LoginResponse {
-  access_token: string;
-  refresh_token: string;
-  token_type: string;
-  expires_in: number;
+export interface RegisterRequest {
+  email: string;
+  password: string;
+  name: string;
 }
 
 export interface User {
   id: string;
   email: string;
-  username: string;
+  name: string;
+  role: 'user' | 'admin';
   is_active: boolean;
-  is_superuser: boolean;
   created_at: string;
 }
+
+export interface AuthResponse {
+  access_token: string;
+  refresh_token: string;
+  token_type: string;
+  user: User;
+}
+
+// Keep for backward compatibility
+export interface LoginResponse extends AuthResponse {}
 
 // API Functions
 export async function generateImage(request: GenerateImageRequest): Promise<GenerateImageResponse> {
@@ -163,13 +172,25 @@ export async function getTemplateCategories(): Promise<{ categories: { id: strin
   return response.data;
 }
 
-export async function login(credentials: LoginRequest): Promise<LoginResponse> {
-  const response = await api.post<LoginResponse>('/api/auth/login', credentials);
+export async function login(credentials: LoginRequest): Promise<AuthResponse> {
+  const response = await api.post<AuthResponse>('/api/auth/login', credentials);
+  if (typeof window !== 'undefined') {
+    localStorage.setItem('access_token', response.data.access_token);
+    localStorage.setItem('refresh_token', response.data.refresh_token);
+  }
+  return response.data;
+}
+
+export async function register(data: RegisterRequest): Promise<AuthResponse> {
+  const response = await api.post<AuthResponse>('/api/auth/register', data);
+  if (typeof window !== 'undefined') {
+    localStorage.setItem('access_token', response.data.access_token);
+    localStorage.setItem('refresh_token', response.data.refresh_token);
+  }
   return response.data;
 }
 
 export async function logout(): Promise<void> {
-  await api.post('/api/auth/logout');
   if (typeof window !== 'undefined') {
     localStorage.removeItem('access_token');
     localStorage.removeItem('refresh_token');
