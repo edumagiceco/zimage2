@@ -1,7 +1,9 @@
 'use client';
 
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
+import { Input } from '@/components/ui/input';
 import {
   Paintbrush,
   Eraser,
@@ -13,9 +15,32 @@ import {
   RectangleHorizontal,
   Lasso,
   FlipHorizontal2,
+  Save,
+  ChevronDown,
+  X,
+  Plus,
+  Minus,
+  Blend,
+  Maximize2,
+  Minimize2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { ToolMode } from './MaskCanvas';
+import { useEditorStore, type BrushPreset } from '@/stores/editorStore';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
 
 interface BrushToolbarProps {
   brushSize: number;
@@ -31,6 +56,9 @@ interface BrushToolbarProps {
   onUndo: () => void;
   onRedo: () => void;
   onInvert: () => void;
+  onGrow?: (radius: number) => void;
+  onShrink?: (radius: number) => void;
+  onFeather?: (radius: number) => void;
 }
 
 export function BrushToolbar({
@@ -47,13 +75,50 @@ export function BrushToolbar({
   onUndo,
   onRedo,
   onInvert,
+  onGrow,
+  onShrink,
+  onFeather,
 }: BrushToolbarProps) {
+  const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const [newPresetName, setNewPresetName] = useState('');
+
+  const {
+    presets,
+    activePresetId,
+    refinementRadius,
+    addPreset,
+    deletePreset,
+    setActivePreset,
+    setRefinementRadius,
+  } = useEditorStore();
+
   const tools: { mode: ToolMode; icon: typeof Paintbrush; label: string }[] = [
     { mode: 'brush', icon: Paintbrush, label: '브러시' },
     { mode: 'eraser', icon: Eraser, label: '지우개' },
     { mode: 'rectangle', icon: RectangleHorizontal, label: '사각형' },
     { mode: 'lasso', icon: Lasso, label: '올가미' },
   ];
+
+  const handlePresetSelect = (preset: BrushPreset) => {
+    setActivePreset(preset.id);
+    onBrushSizeChange(preset.size);
+    onBrushHardnessChange(preset.hardness);
+  };
+
+  const handleSavePreset = () => {
+    if (newPresetName.trim()) {
+      addPreset(newPresetName.trim(), brushSize, brushHardness);
+      setNewPresetName('');
+      setShowSaveDialog(false);
+    }
+  };
+
+  const handleDeletePreset = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    deletePreset(id);
+  };
+
+  const activePreset = presets.find(p => p.id === activePresetId);
 
   return (
     <div className="flex flex-col gap-4 p-4 bg-card rounded-lg border">
@@ -108,6 +173,63 @@ export function BrushToolbar({
       {/* Brush settings - only show for brush/eraser */}
       {(toolMode === 'brush' || toolMode === 'eraser') && (
         <>
+          {/* Brush Presets */}
+          <div className="space-y-2 border-t pt-4">
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium">브러시 프리셋</label>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowSaveDialog(true)}
+                className="h-7 px-2"
+              >
+                <Save className="h-3 w-3 mr-1" />
+                저장
+              </Button>
+            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="w-full justify-between">
+                  <span className="truncate">
+                    {activePreset ? activePreset.name : '프리셋 선택...'}
+                  </span>
+                  <ChevronDown className="h-4 w-4 ml-2 flex-shrink-0" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-56">
+                {presets.map((preset) => (
+                  <DropdownMenuItem
+                    key={preset.id}
+                    onClick={() => handlePresetSelect(preset)}
+                    className="flex justify-between"
+                  >
+                    <div className="flex flex-col">
+                      <span>{preset.name}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {preset.size}px / {preset.hardness}%
+                      </span>
+                    </div>
+                    {!preset.isDefault && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 w-6 p-0 hover:bg-destructive hover:text-destructive-foreground"
+                        onClick={(e) => handleDeletePreset(preset.id, e)}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    )}
+                  </DropdownMenuItem>
+                ))}
+                {presets.length === 0 && (
+                  <DropdownMenuItem disabled>
+                    저장된 프리셋이 없습니다
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <label className="text-sm font-medium">브러시 크기</label>
@@ -115,7 +237,10 @@ export function BrushToolbar({
             </div>
             <Slider
               value={[brushSize]}
-              onValueChange={(value) => onBrushSizeChange(value[0])}
+              onValueChange={(value) => {
+                onBrushSizeChange(value[0]);
+                setActivePreset(null);
+              }}
               min={10}
               max={100}
               step={5}
@@ -140,7 +265,10 @@ export function BrushToolbar({
             </div>
             <Slider
               value={[brushHardness]}
-              onValueChange={(value) => onBrushHardnessChange(value[0])}
+              onValueChange={(value) => {
+                onBrushHardnessChange(value[0]);
+                setActivePreset(null);
+              }}
               min={0}
               max={100}
               step={10}
@@ -174,6 +302,59 @@ export function BrushToolbar({
           <p className="font-medium mb-1">올가미 선택 도구</p>
           <p>드래그하여 자유 형태로 영역을 선택합니다.</p>
           <p>마우스를 떼면 자동으로 닫힙니다.</p>
+        </div>
+      )}
+
+      {/* Mask Refinement Tools */}
+      {(onGrow || onShrink || onFeather) && (
+        <div className="space-y-2 pt-2 border-t">
+          <label className="text-sm font-medium">마스크 정제</label>
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs text-muted-foreground">반경</span>
+            <span className="text-xs text-muted-foreground">{refinementRadius}px</span>
+          </div>
+          <Slider
+            value={[refinementRadius]}
+            onValueChange={(value) => setRefinementRadius(value[0])}
+            min={1}
+            max={20}
+            step={1}
+          />
+          <div className="grid grid-cols-3 gap-2 mt-2">
+            {onGrow && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onGrow(refinementRadius)}
+                title="선택 영역 확장"
+              >
+                <Maximize2 className="h-4 w-4 mr-1" />
+                확장
+              </Button>
+            )}
+            {onShrink && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onShrink(refinementRadius)}
+                title="선택 영역 축소"
+              >
+                <Minimize2 className="h-4 w-4 mr-1" />
+                축소
+              </Button>
+            )}
+            {onFeather && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onFeather(refinementRadius)}
+                title="가장자리 부드럽게"
+              >
+                <Blend className="h-4 w-4 mr-1" />
+                페더
+              </Button>
+            )}
+          </div>
         </div>
       )}
 
@@ -215,6 +396,40 @@ export function BrushToolbar({
           단축키: Ctrl+Z (취소), Ctrl+Shift+Z (재실행), ESC (선택 취소)
         </p>
       </div>
+
+      {/* Save Preset Dialog */}
+      <Dialog open={showSaveDialog} onOpenChange={setShowSaveDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>브러시 프리셋 저장</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">프리셋 이름</label>
+              <Input
+                value={newPresetName}
+                onChange={(e) => setNewPresetName(e.target.value)}
+                placeholder="새 프리셋 이름..."
+                onKeyDown={(e) => e.key === 'Enter' && handleSavePreset()}
+              />
+            </div>
+            <div className="p-3 bg-muted rounded text-sm">
+              <p>현재 설정:</p>
+              <p className="text-muted-foreground">
+                크기: {brushSize}px / 경도: {brushHardness}%
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowSaveDialog(false)}>
+              취소
+            </Button>
+            <Button onClick={handleSavePreset} disabled={!newPresetName.trim()}>
+              저장
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

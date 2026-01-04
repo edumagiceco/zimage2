@@ -46,3 +46,15 @@ class CreateEditHistoryRequest(BaseModel):
     original_thumbnail_url: Optional[str] = None
     edited_thumbnail_url: Optional[str] = None
     edit_metadata: Dict[str, Any] = {}
+
+
+class ReplayEditRequest(BaseModel):
+    """Request to replay an edit on a new target image"""
+    target_image_id: UUID
+
+
+class ReplayEditResponse(BaseModel):
+    """Response for replay edit request"""
+    task_id: UUID
+    status: str
+    estimated_time: float

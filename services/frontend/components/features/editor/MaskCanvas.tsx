@@ -506,6 +506,206 @@ export function MaskCanvas({
     onMaskChange(maskDataUrl);
   }, [width, height, onMaskChange, saveToHistory]);
 
+  // Grow mask - expand selection by radius pixels
+  const growMask = useCallback((radius: number) => {
+    const canvas = maskCanvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const imageData = ctx.getImageData(0, 0, width, height);
+    const data = imageData.data;
+    const expanded = new Uint8ClampedArray(data);
+
+    // Create circular kernel
+    const kernelSize = radius * 2 + 1;
+    const kernel: boolean[] = [];
+    for (let dy = -radius; dy <= radius; dy++) {
+      for (let dx = -radius; dx <= radius; dx++) {
+        kernel.push(Math.sqrt(dx * dx + dy * dy) <= radius);
+      }
+    }
+
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const pixelIndex = (y * width + x) * 4;
+
+        // Skip if already masked
+        if (data[pixelIndex + 3] > 0) continue;
+
+        // Check if any neighbor within radius is masked
+        let shouldExpand = false;
+        outerLoop:
+        for (let dy = -radius; dy <= radius; dy++) {
+          for (let dx = -radius; dx <= radius; dx++) {
+            const kIndex = (dy + radius) * kernelSize + (dx + radius);
+            if (!kernel[kIndex]) continue;
+
+            const nx = x + dx;
+            const ny = y + dy;
+            if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
+
+            const neighborIndex = (ny * width + nx) * 4;
+            if (data[neighborIndex + 3] > 0) {
+              shouldExpand = true;
+              break outerLoop;
+            }
+          }
+        }
+
+        if (shouldExpand) {
+          expanded[pixelIndex] = 255;
+          expanded[pixelIndex + 1] = 0;
+          expanded[pixelIndex + 2] = 0;
+          expanded[pixelIndex + 3] = 128;
+        }
+      }
+    }
+
+    ctx.putImageData(new ImageData(expanded, width, height), 0, 0);
+    saveToHistory();
+    const maskDataUrl = canvas.toDataURL('image/png');
+    onMaskChange(maskDataUrl);
+  }, [width, height, saveToHistory, onMaskChange]);
+
+  // Shrink mask - reduce selection by radius pixels
+  const shrinkMask = useCallback((radius: number) => {
+    const canvas = maskCanvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const imageData = ctx.getImageData(0, 0, width, height);
+    const data = imageData.data;
+    const shrunk = new Uint8ClampedArray(data);
+
+    // Create circular kernel
+    const kernelSize = radius * 2 + 1;
+    const kernel: boolean[] = [];
+    for (let dy = -radius; dy <= radius; dy++) {
+      for (let dx = -radius; dx <= radius; dx++) {
+        kernel.push(Math.sqrt(dx * dx + dy * dy) <= radius);
+      }
+    }
+
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const pixelIndex = (y * width + x) * 4;
+
+        // Skip if not masked
+        if (data[pixelIndex + 3] === 0) continue;
+
+        // Check if any neighbor within radius is not masked (edge detection)
+        let isEdge = false;
+        outerLoop:
+        for (let dy = -radius; dy <= radius; dy++) {
+          for (let dx = -radius; dx <= radius; dx++) {
+            const kIndex = (dy + radius) * kernelSize + (dx + radius);
+            if (!kernel[kIndex]) continue;
+
+            const nx = x + dx;
+            const ny = y + dy;
+
+            // Edge of canvas counts as not masked
+            if (nx < 0 || nx >= width || ny < 0 || ny >= height) {
+              isEdge = true;
+              break outerLoop;
+            }
+
+            const neighborIndex = (ny * width + nx) * 4;
+            if (data[neighborIndex + 3] === 0) {
+              isEdge = true;
+              break outerLoop;
+            }
+          }
+        }
+
+        if (isEdge) {
+          shrunk[pixelIndex] = 0;
+          shrunk[pixelIndex + 1] = 0;
+          shrunk[pixelIndex + 2] = 0;
+          shrunk[pixelIndex + 3] = 0;
+        }
+      }
+    }
+
+    ctx.putImageData(new ImageData(shrunk, width, height), 0, 0);
+    saveToHistory();
+    const maskDataUrl = canvas.toDataURL('image/png');
+    onMaskChange(maskDataUrl);
+  }, [width, height, saveToHistory, onMaskChange]);
+
+  // Feather mask - blur edges to create soft transition
+  const featherMask = useCallback((radius: number) => {
+    const canvas = maskCanvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const imageData = ctx.getImageData(0, 0, width, height);
+    const data = imageData.data;
+    const result = new Uint8ClampedArray(data.length);
+
+    // Create Gaussian kernel
+    const kernelSize = radius * 2 + 1;
+    const kernel: number[] = [];
+    let kernelSum = 0;
+    const sigma = radius / 2;
+
+    for (let dy = -radius; dy <= radius; dy++) {
+      for (let dx = -radius; dx <= radius; dx++) {
+        const weight = Math.exp(-(dx * dx + dy * dy) / (2 * sigma * sigma));
+        kernel.push(weight);
+        kernelSum += weight;
+      }
+    }
+
+    // Normalize kernel
+    for (let i = 0; i < kernel.length; i++) {
+      kernel[i] /= kernelSum;
+    }
+
+    // Apply Gaussian blur to alpha channel only
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const pixelIndex = (y * width + x) * 4;
+        let alphaSum = 0;
+
+        for (let dy = -radius; dy <= radius; dy++) {
+          for (let dx = -radius; dx <= radius; dx++) {
+            const kIndex = (dy + radius) * kernelSize + (dx + radius);
+            const nx = Math.min(Math.max(x + dx, 0), width - 1);
+            const ny = Math.min(Math.max(y + dy, 0), height - 1);
+            const neighborIndex = (ny * width + nx) * 4;
+
+            alphaSum += data[neighborIndex + 3] * kernel[kIndex];
+          }
+        }
+
+        // Set red color with blurred alpha
+        if (alphaSum > 0) {
+          result[pixelIndex] = 255;
+          result[pixelIndex + 1] = 0;
+          result[pixelIndex + 2] = 0;
+          result[pixelIndex + 3] = Math.round(alphaSum);
+        } else {
+          result[pixelIndex] = 0;
+          result[pixelIndex + 1] = 0;
+          result[pixelIndex + 2] = 0;
+          result[pixelIndex + 3] = 0;
+        }
+      }
+    }
+
+    ctx.putImageData(new ImageData(result, width, height), 0, 0);
+    saveToHistory();
+    const maskDataUrl = canvas.toDataURL('image/png');
+    onMaskChange(maskDataUrl);
+  }, [width, height, saveToHistory, onMaskChange]);
+
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -542,11 +742,14 @@ export function MaskCanvas({
       undo: undo,
       redo: redo,
       invert: invertMask,
+      grow: growMask,
+      shrink: shrinkMask,
+      feather: featherMask,
     };
     return () => {
       delete (window as any).__maskCanvas;
     };
-  }, [clearMask, fillAll, undo, redo, invertMask]);
+  }, [clearMask, fillAll, undo, redo, invertMask, growMask, shrinkMask, featherMask]);
 
   const scaledWidth = width * scale;
   const scaledHeight = height * scale;

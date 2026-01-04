@@ -146,6 +146,24 @@ export function ImageEditor({ image }: ImageEditorProps) {
     }
   };
 
+  const handleGrow = (radius: number) => {
+    if ((window as any).__maskCanvas) {
+      (window as any).__maskCanvas.grow(radius);
+    }
+  };
+
+  const handleShrink = (radius: number) => {
+    if ((window as any).__maskCanvas) {
+      (window as any).__maskCanvas.shrink(radius);
+    }
+  };
+
+  const handleFeather = (radius: number) => {
+    if ((window as any).__maskCanvas) {
+      (window as any).__maskCanvas.feather(radius);
+    }
+  };
+
   const handleDownload = (imageUrl: string, index: number) => {
     const link = document.createElement('a');
     link.href = imageUrl;
@@ -398,6 +416,9 @@ export function ImageEditor({ image }: ImageEditorProps) {
               onUndo={handleUndo}
               onRedo={handleRedo}
               onInvert={handleInvert}
+              onGrow={handleGrow}
+              onShrink={handleShrink}
+              onFeather={handleFeather}
             />
 
             {/* Original Image Info */}

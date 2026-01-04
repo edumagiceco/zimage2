@@ -315,4 +315,22 @@ export async function deleteEditHistory(historyId: string): Promise<void> {
   await api.delete(`/api/edit-history/${historyId}`);
 }
 
+// Replay edit on a new target image
+export interface ReplayEditResponse {
+  task_id: string;
+  status: string;
+  estimated_time: number;
+}
+
+export async function replayEdit(
+  historyId: string,
+  targetImageId: string
+): Promise<ReplayEditResponse> {
+  const response = await api.post<ReplayEditResponse>(
+    `/api/edit-history/${historyId}/replay`,
+    { target_image_id: targetImageId }
+  );
+  return response.data;
+}
+
 export default api;

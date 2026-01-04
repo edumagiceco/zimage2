@@ -11,6 +11,7 @@ import {
   Loader2,
   ArrowRight,
   Clock,
+  Repeat,
 } from 'lucide-react';
 import {
   getImageEditHistory,
@@ -32,14 +33,18 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import { ReplayDialog } from './ReplayDialog';
 
 interface EditHistoryPanelProps {
   imageId: string;
   onSelectHistory?: (history: EditHistoryItem) => void;
+  onReplayStarted?: (taskId: string) => void;
 }
 
-export function EditHistoryPanel({ imageId, onSelectHistory }: EditHistoryPanelProps) {
+export function EditHistoryPanel({ imageId, onSelectHistory, onReplayStarted }: EditHistoryPanelProps) {
   const [page, setPage] = useState(1);
+  const [replayDialogOpen, setReplayDialogOpen] = useState(false);
+  const [selectedHistoryForReplay, setSelectedHistoryForReplay] = useState<EditHistoryItem | null>(null);
   const queryClient = useQueryClient();
 
   const { data, isLoading, error } = useQuery({
@@ -99,6 +104,10 @@ export function EditHistoryPanel({ imageId, onSelectHistory }: EditHistoryPanelP
               item={item}
               onSelect={() => onSelectHistory?.(item)}
               onDelete={() => deleteMutation.mutate(item.id)}
+              onReplay={() => {
+                setSelectedHistoryForReplay(item);
+                setReplayDialogOpen(true);
+              }}
               isDeleting={deleteMutation.isPending}
             />
           ))}
@@ -116,6 +125,19 @@ export function EditHistoryPanel({ imageId, onSelectHistory }: EditHistoryPanelP
           </Button>
         </div>
       )}
+
+      {/* Replay Dialog */}
+      {selectedHistoryForReplay && (
+        <ReplayDialog
+          open={replayDialogOpen}
+          onOpenChange={setReplayDialogOpen}
+          historyItem={selectedHistoryForReplay}
+          onReplayStarted={(taskId) => {
+            onReplayStarted?.(taskId);
+            setReplayDialogOpen(false);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -124,10 +146,11 @@ interface EditHistoryCardProps {
   item: EditHistoryItem;
   onSelect?: () => void;
   onDelete?: () => void;
+  onReplay?: () => void;
   isDeleting?: boolean;
 }
 
-function EditHistoryCard({ item, onSelect, onDelete, isDeleting }: EditHistoryCardProps) {
+function EditHistoryCard({ item, onSelect, onDelete, onReplay, isDeleting }: EditHistoryCardProps) {
   const editTypeLabels: Record<string, string> = {
     inpaint: '인페인팅',
     filter: '필터',
@@ -197,8 +220,17 @@ function EditHistoryCard({ item, onSelect, onDelete, isDeleting }: EditHistoryCa
 
         {/* Actions */}
         <div className="flex flex-col gap-1 flex-shrink-0">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={onReplay}
+            title="다른 이미지에 적용"
+          >
+            <Repeat className="h-4 w-4" />
+          </Button>
           <Link href={`/edit/${item.edited_image_id}`}>
-            <Button variant="ghost" size="icon" className="h-8 w-8">
+            <Button variant="ghost" size="icon" className="h-8 w-8" title="편집된 이미지 보기">
               <ChevronRight className="h-4 w-4" />
             </Button>
           </Link>
