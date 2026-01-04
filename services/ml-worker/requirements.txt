@@ -27,3 +27,6 @@ structlog>=24.1.0
 
 # HuggingFace Hub
 huggingface-hub==0.21.4
+
+# Translation
+sentencepiece>=0.1.99

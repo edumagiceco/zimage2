@@ -26,8 +26,9 @@ class Settings(BaseSettings):
     MODEL_NAME: str = "stabilityai/sdxl-turbo"
     HF_HOME: str = "/models/huggingface"
 
-    # Translation Model (Qwen2.5-3B-Instruct for Korean to English)
-    TRANSLATION_MODEL_NAME: str = "Qwen/Qwen2.5-3B-Instruct"
+    # Translation Model
+    # Options: "google/gemma-3-1b-it" (1B, ~2GB, gated), "Qwen/Qwen2.5-3B-Instruct" (3B, 6GB), "Helsinki-NLP/opus-mt-ko-en" (300MB)
+    TRANSLATION_MODEL_NAME: str = "Helsinki-NLP/opus-mt-ko-en"
     ENABLE_TRANSLATION: bool = True
 
     # GPU Settings
