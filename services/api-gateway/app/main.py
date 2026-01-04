@@ -60,7 +60,7 @@ app.add_middleware(
 app.add_middleware(RateLimitMiddleware)
 
 # Include routers
-app.include_router(proxy.router, prefix="/v1")
+app.include_router(proxy.router, prefix="/api")
 
 
 # Health check endpoint

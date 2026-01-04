@@ -1,0 +1,182 @@
+import axios from 'axios';
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8100';
+
+const api = axios.create({
+  baseURL: API_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+// Add auth token to requests
+api.interceptors.request.use((config) => {
+  if (typeof window !== 'undefined') {
+    const token = localStorage.getItem('access_token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+  }
+  return config;
+});
+
+// Types
+export interface GenerateImageRequest {
+  prompt: string;
+  negative_prompt?: string;
+  width?: number;
+  height?: number;
+  num_images?: number;
+  seed?: number;
+}
+
+export interface GenerateImageResponse {
+  task_id: string;
+  status: string;
+  estimated_time: number;
+}
+
+export interface GeneratedImage {
+  id: string;
+  url: string;
+  thumbnail_url?: string;
+  width: number;
+  height: number;
+  seed?: number;
+}
+
+export interface TaskStatusResponse {
+  task_id: string;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  images: GeneratedImage[];
+  error?: string;
+  created_at: string;
+  started_at?: string;
+  completed_at?: string;
+  progress?: number;
+  progress_message?: string;
+  estimated_seconds?: number;
+  elapsed_seconds?: number;
+}
+
+export interface GalleryImage {
+  id: string;
+  url: string;
+  thumbnail_url?: string;
+  prompt: string;
+  negative_prompt?: string;
+  width: number;
+  height: number;
+  seed?: number;
+  is_favorite: boolean;
+  created_at: string;
+}
+
+export interface GalleryResponse {
+  images: GalleryImage[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export interface GalleryParams {
+  page?: number;
+  limit?: number;
+  folder_id?: string;
+  favorites_only?: boolean;
+  search?: string;
+}
+
+export interface Template {
+  id: number;
+  category: string;
+  title: string;
+  prompt: string;
+  thumbnail: string;
+  size: string;
+  tags: string[];
+}
+
+export interface TemplatesResponse {
+  templates: Template[];
+  categories: string[];
+}
+
+export interface LoginRequest {
+  email: string;
+  password: string;
+}
+
+export interface LoginResponse {
+  access_token: string;
+  refresh_token: string;
+  token_type: string;
+  expires_in: number;
+}
+
+export interface User {
+  id: string;
+  email: string;
+  username: string;
+  is_active: boolean;
+  is_superuser: boolean;
+  created_at: string;
+}
+
+// API Functions
+export async function generateImage(request: GenerateImageRequest): Promise<GenerateImageResponse> {
+  const response = await api.post<GenerateImageResponse>('/api/images/generate', request);
+  return response.data;
+}
+
+export async function getTaskStatus(taskId: string): Promise<TaskStatusResponse> {
+  const response = await api.get<TaskStatusResponse>(`/api/tasks/${taskId}`);
+  return response.data;
+}
+
+export async function getGalleryImages(params?: GalleryParams): Promise<GalleryResponse> {
+  const response = await api.get<GalleryResponse>('/api/gallery/images', { params });
+  return response.data;
+}
+
+export async function toggleFavorite(imageId: string): Promise<GalleryImage> {
+  const response = await api.post<GalleryImage>(`/api/gallery/images/${imageId}/favorite`);
+  return response.data;
+}
+
+export async function deleteImage(imageId: string): Promise<void> {
+  await api.delete(`/api/gallery/images/${imageId}`);
+}
+
+export async function getTemplates(): Promise<TemplatesResponse> {
+  const response = await api.get<TemplatesResponse>('/api/gallery/templates');
+  return response.data;
+}
+
+export async function login(credentials: LoginRequest): Promise<LoginResponse> {
+  const response = await api.post<LoginResponse>('/api/auth/login', credentials);
+  return response.data;
+}
+
+export async function logout(): Promise<void> {
+  await api.post('/api/auth/logout');
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+  }
+}
+
+export async function getCurrentUser(): Promise<User> {
+  const response = await api.get<User>('/api/auth/me');
+  return response.data;
+}
+
+export async function refreshToken(): Promise<LoginResponse> {
+  const refreshToken = localStorage.getItem('refresh_token');
+  const response = await api.post<LoginResponse>('/api/auth/refresh', {
+    refresh_token: refreshToken,
+  });
+  return response.data;
+}
+
+export default api;
